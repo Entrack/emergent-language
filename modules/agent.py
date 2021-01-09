@@ -21,12 +21,12 @@ class AgentModule(nn.Module):
         self.total_cost = Variable(self.Tensor(1).zero_())
 
         self.physical_processor = ProcessingModule(config.physical_processor)
-        self.physical_pooling = nn.AdaptiveMaxPool2d((1,config.feat_vec_size))
+        self.physical_pooling = nn.AdaptiveMaxPool2d((1, config.feature_vec_size))
         self.action_processor = ActionModule(config.action_processor)
 
         if self.using_utterances:
             self.utterance_processor = GoalPredictingProcessingModule(config.utterance_processor)
-            self.utterance_pooling = nn.AdaptiveMaxPool2d((1,config.feat_vec_size))
+            self.utterance_pooling = nn.AdaptiveMaxPool2d((1, config.feature_vec_size))
             if self.penalizing_words:
                 self.word_counter = WordCountingModule(config.word_counter)
 
@@ -71,13 +71,13 @@ class AgentModule(nn.Module):
         self.update_mem(game, "physical", new_mem,agent, other_entity)
         physical_processes[:,other_entity,:] = physical_processed
 
-    def get_physical_feat(self, game, agent):
+    def get_physical_feature(self, game, agent):
         physical_processes = Variable(self.Tensor(game.batch_size, game.num_entities, self.processing_hidden_size))
         for entity in range(game.num_entities):
             self.process_physical(game, agent, entity, physical_processes)
         return self.physical_pooling(physical_processes)
 
-    def get_utterance_feat(self, game, agent, goal_predictions):
+    def get_utterance_feature(self, game, agent, goal_predictions):
         if self.using_utterances:
             utterance_processes = Variable(self.Tensor(game.batch_size, game.num_agents, self.processing_hidden_size))
             for other_agent in range(game.num_agents):
@@ -86,8 +86,8 @@ class AgentModule(nn.Module):
         else:
             return None
 
-    def get_action(self, game, agent, physical_feat, utterance_feat, movements, utterances):
-        movement, utterance, new_mem = self.action_processor(physical_feat, game.observed_goals[:,agent], game.memories["action"][:,agent], self.training, utterance_feat)
+    def get_action(self, game, agent, physical_feature, utterance_feature, movements, utterances):
+        movement, utterance, new_mem = self.action_processor(physical_feature, game.observed_goals[:,agent], game.memories["action"][:,agent], self.training, utterance_feature)
         self.update_mem(game, "action", new_mem, agent)
         movements[:,agent,:] = movement
         if self.using_utterances:
@@ -96,24 +96,27 @@ class AgentModule(nn.Module):
     def forward(self, game):
         timesteps = []
         for t in range(self.time_horizon):
+            # Batch size represents how many games would be run in parallel
             movements = Variable(self.Tensor(game.batch_size, game.num_entities, self.movement_dim_size).zero_())
             utterances = None
             goal_predictions = None
             if self.using_utterances:
                 utterances = Variable(self.Tensor(game.batch_size, game.num_agents, self.vocab_size))
+                # What does each agent think of anothers landmark probality distribution
                 goal_predictions = Variable(self.Tensor(game.batch_size, game.num_agents, game.num_agents, self.goal_size))
 
             for agent in range(game.num_agents):
-                physical_feat = self.get_physical_feat(game, agent)
-                utterance_feat = self.get_utterance_feat(game, agent, goal_predictions)
-                self.get_action(game, agent, physical_feat, utterance_feat, movements, utterances)
+                physical_feature = self.get_physical_feature(game, agent)
+                utterance_feature = self.get_utterance_feature(game, agent, goal_predictions)
+                self.get_action(game, agent, physical_feature, utterance_feature, movements, utterances)
 
             cost = game(movements, goal_predictions, utterances)
             if self.penalizing_words:
                 cost = cost + self.word_counter(utterances)
 
             self.total_cost = self.total_cost + cost
-            if not self.training:
+            # if not self.training:
+            if True:
                 timesteps.append({
                     'locations': game.locations,
                     'movements': movements,

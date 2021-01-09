@@ -11,7 +11,7 @@ DEFAULT_MODEL_FILE = 'latest.pt'
 
 DEFAULT_HIDDEN_SIZE = 256
 DEFAULT_DROPOUT = 0.1
-DEFAULT_FEAT_VEC_SIZE = 256
+DEFAULT_FEATURE_VEC_SIZE = 256
 DEFAULT_TIME_HORIZON = 16
 
 USE_UTTERANCES = True
@@ -85,7 +85,7 @@ ActionModuleConfig = NamedTuple("ActionModuleConfig", [
 
 AgentModuleConfig = NamedTuple("AgentModuleConfig", [
     ('time_horizon', int),
-    ('feat_vec_size', int),
+    ('feature_vec_size', int),
     ('movement_dim_size', int),
     ('goal_size', int),
     ('vocab_size', int),
@@ -128,9 +128,9 @@ default_game_config = GameConfig(
         )
 
 if USE_UTTERANCES:
-    feat_size = DEFAULT_FEAT_VEC_SIZE*3
+    feature_size = DEFAULT_FEATURE_VEC_SIZE*3
 else:
-    feat_size = DEFAULT_FEAT_VEC_SIZE*2
+    feature_size = DEFAULT_FEATURE_VEC_SIZE*2
 
 def get_processor_config_with_input_size(input_size):
     return ProcessingModuleConfig(
@@ -140,7 +140,7 @@ def get_processor_config_with_input_size(input_size):
 
 default_action_module_config = ActionModuleConfig(
         goal_processor=get_processor_config_with_input_size(constants.GOAL_SIZE),
-        action_processor=get_processor_config_with_input_size(feat_size),
+        action_processor=get_processor_config_with_input_size(feature_size),
         hidden_size=DEFAULT_HIDDEN_SIZE,
         dropout=DEFAULT_DROPOUT,
         movement_dim_size=constants.MOVEMENT_DIM_SIZE,
@@ -157,7 +157,7 @@ default_goal_predicting_module_config = GoalPredictingProcessingModuleConfig(
 
 default_agent_config = AgentModuleConfig(
         time_horizon=DEFAULT_TIME_HORIZON,
-        feat_vec_size=DEFAULT_FEAT_VEC_SIZE,
+        feature_vec_size=DEFAULT_FEATURE_VEC_SIZE,
         movement_dim_size=constants.MOVEMENT_DIM_SIZE,
         utterance_processor=default_goal_predicting_module_config,
         physical_processor=get_processor_config_with_input_size(constants.MOVEMENT_DIM_SIZE + constants.PHYSICAL_EMBED_SIZE),
@@ -202,9 +202,9 @@ def get_agent_config(kwargs):
     penalize_words = kwargs['penalize_words']
     oov_prob = kwargs['oov_prob'] or DEFAULT_OOV_PROB
     if use_utterances:
-        feat_vec_size = DEFAULT_FEAT_VEC_SIZE*3
+        feature_vec_size = DEFAULT_FEATURE_VEC_SIZE*3
     else:
-        feat_vec_size = DEFAULT_FEAT_VEC_SIZE*2
+        feature_vec_size = DEFAULT_FEATURE_VEC_SIZE*2
     utterance_processor = GoalPredictingProcessingModuleConfig(
             processor=get_processor_config_with_input_size(vocab_size),
             hidden_size=DEFAULT_HIDDEN_SIZE,
@@ -212,7 +212,7 @@ def get_agent_config(kwargs):
             goal_size=constants.GOAL_SIZE)
     action_processor = ActionModuleConfig(
             goal_processor=get_processor_config_with_input_size(constants.GOAL_SIZE),
-            action_processor=get_processor_config_with_input_size(feat_vec_size),
+            action_processor=get_processor_config_with_input_size(feature_vec_size),
             hidden_size=DEFAULT_HIDDEN_SIZE,
             dropout=DEFAULT_DROPOUT,
             movement_dim_size=constants.MOVEMENT_DIM_SIZE,
@@ -227,7 +227,7 @@ def get_agent_config(kwargs):
 
     return AgentModuleConfig(
             time_horizon=kwargs['n_timesteps'] or default_agent_config.time_horizon,
-            feat_vec_size=default_agent_config.feat_vec_size,
+            feature_vec_size=default_agent_config.feature_vec_size,
             movement_dim_size=default_agent_config.movement_dim_size,
             utterance_processor=utterance_processor,
             physical_processor=default_agent_config.physical_processor,

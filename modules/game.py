@@ -41,11 +41,17 @@ class GameModule(nn.Module):
         else:
             self.Tensor = torch.FloatTensor
 
+        #
+        # Locations of all entities
+        #
         locations = torch.rand(self.batch_size, self.num_entities, 2) * config.world_dim
         colors = (torch.rand(self.batch_size, self.num_entities, 1) * config.num_colors).floor()
         shapes = (torch.rand(self.batch_size, self.num_entities, 1) * config.num_shapes).floor()
 
         goal_agents = self.Tensor(self.batch_size, self.num_agents, 1)
+        #
+        # Each agent has a goal landmark
+        #
         goal_entities = (torch.rand(self.batch_size, self.num_agents, 1) * self.num_landmarks).floor().long() + self.num_agents
         goal_locations = self.Tensor(self.batch_size, self.num_agents, 2)
 
@@ -60,13 +66,23 @@ class GameModule(nn.Module):
         # [batch_size, num_entities, 2]
         self.physical = Variable(torch.cat((colors,shapes), 2).float())
 
+        #
+        # Permuting agent indicies for landmark-agent shuffle
+        #
         #TODO: Bad for loop?
         for b in range(self.batch_size):
-            goal_agents[b] = torch.randperm(self.num_agents)
+            # goal_agents[b] = torch.randperm(self.num_agents)
+            goal_agents[b, :, 0] = torch.randperm(self.num_agents)
 
+        #
+        # Goal landmark locations
+        #
         for b in range(self.batch_size):
             goal_locations[b] = self.locations.data[b][goal_entities[b].squeeze()]
 
+        #
+        # Concat of goal landmark locations and permuted agent indices
+        #
         # [batch_size, num_agents, 3]
         self.goals = Variable(torch.cat((goal_locations, goal_agents), 2))
         goal_agents = Variable(goal_agents)
@@ -89,8 +105,15 @@ class GameModule(nn.Module):
                 self.utterances = Variable(torch.zeros(self.batch_size, self.num_agents, config.vocab_size))
                 self.memories["utterance"] = Variable(torch.zeros(self.batch_size, self.num_agents, self.num_agents, config.memory_size))
 
+        #
+        # Agent locations at the beginning of the episode
+        #
         agent_baselines = self.locations[:, :self.num_agents, :]
 
+        #
+        # ? Getting the goal landmark locations to correspond to permuted agent indices
+        # To get locations corresponding to [0, 1, 2] agent order
+        #
         sort_idxs = torch.sort(self.goals[:,:,2])[1]
         self.sorted_goals = Variable(self.Tensor(self.goals.size()))
         # TODO: Bad for loop?
@@ -98,11 +121,20 @@ class GameModule(nn.Module):
             self.sorted_goals[b] = self.goals[b][sort_idxs[b]]
         self.sorted_goals = self.sorted_goals[:,:,:2]
 
+        #
+        # Getting locations of all entities relative to the agents
+        #
         # [batch_size, num_agents, num_entities, 2]
         self.observations = self.locations.unsqueeze(1) - agent_baselines.unsqueeze(2)
 
+        #
+        # Getting goal landmark locations relative to the agents
+        #
         new_obs = self.goals[:,:,:2] - agent_baselines
 
+        #
+        # Concatenated goal landmark relative locations, goal landmark locations and permuted agent indices
+        #
         # [batch_size, num_agents, 2] [batch_size, num_agents, 1]
         self.observed_goals = torch.cat((new_obs, goal_agents), dim=2)
 
