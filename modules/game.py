@@ -148,7 +148,7 @@ class GameModule(nn.Module):
     Returns:
         - scalar: total cost of all games in the batch
     """
-    def forward(self, movements, goal_predictions, utterances):
+    def forward(self, movements, goal_predictions, utterances, new_log_format=False):
         self.locations = self.locations + movements
         agent_baselines = self.locations[:, :self.num_agents]
         self.observations = self.locations.unsqueeze(1)- agent_baselines.unsqueeze(2)
@@ -157,15 +157,18 @@ class GameModule(nn.Module):
         self.observed_goals = torch.cat((new_obs, goal_agents), dim=2)
         if self.using_utterances:
             self.utterances = utterances
-            return self.compute_cost(movements, goal_predictions, utterances)
+            return self.compute_cost(movements, goal_predictions, utterances, new_log_format=new_log_format)
         else:
-            return self.compute_cost(movements, goal_predictions)
+            return self.compute_cost(movements, goal_predictions, new_log_format=new_log_format)
 
-    def compute_cost(self, movements, goal_predictions, utterances=None):
+    def compute_cost(self, movements, goal_predictions, utterances=None, new_log_format=False):
         physical_cost = self.compute_physical_cost()
         movement_cost = self.compute_movement_cost(movements)
         goal_pred_cost = self.compute_goal_pred_cost(goal_predictions)
-        return physical_cost + goal_pred_cost + movement_cost
+        if not new_log_format:
+            return physical_cost + goal_pred_cost + movement_cost
+        else:
+            return physical_cost, goal_pred_cost, movement_cost
 
     """
     Computes the total cost agents get from being near their goals
@@ -197,18 +200,21 @@ class GameModule(nn.Module):
 
     """
     def compute_goal_pred_cost(self, goal_predictions):
-        relative_goal_locs = self.goals.unsqueeze(1)[:,:,:,:2] - self.locations.unsqueeze(2)[:, :self.num_agents, :, :]
-        goal_agents = self.goals.unsqueeze(1)[:,:,:,2:].expand_as(relative_goal_locs)[:,:,:,-1:]
-        relative_goals =  torch.cat((relative_goal_locs, goal_agents), dim=3)
-        return torch.sum(
-                torch.sqrt(
-                    torch.sum(
-                        torch.pow(
-                            goal_predictions - relative_goals,
-                            2),
-                        -1)
+        if goal_predictions is None:
+            return torch.zeros(1)
+        else:
+            relative_goal_locs = self.goals.unsqueeze(1)[:,:,:,:2] - self.locations.unsqueeze(2)[:, :self.num_agents, :, :]
+            goal_agents = self.goals.unsqueeze(1)[:,:,:,2:].expand_as(relative_goal_locs)[:,:,:,-1:]
+            relative_goals =  torch.cat((relative_goal_locs, goal_agents), dim=3)
+            return torch.sum(
+                    torch.sqrt(
+                        torch.sum(
+                            torch.pow(
+                                goal_predictions - relative_goals,
+                                2),
+                            -1)
+                        )
                     )
-                )
 
     """
     Computes the total cost agents get from moving

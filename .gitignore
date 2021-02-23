@@ -12,3 +12,4 @@ docker/
 .vscode/
 .venv/
 !latest.pt
+# experiments/

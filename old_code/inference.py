@@ -47,7 +47,7 @@ for i in range(10):
                             color='dark'+colors[int(game.physical[0, idx, 0].item())], 
                             marker=landmark_markers[int(game.physical[0, idx, 1].item())],
                             s=300, alpha=0.75)
-        utterances += timestep['utterances'][0].detach().numpy()
+        utterances = utterances + timestep['utterances'][0].detach().numpy()
     # this controls how much we highlight or supress non-freqent symbol when displaying
     # pow < 1 helps to bring in the low freqent symbols that were emitted once and lost in sum
     # pow >=1 can highlight some important symbols through the epoch if it is too noisy

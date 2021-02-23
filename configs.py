@@ -27,6 +27,11 @@ MIN_LANDMARKS = 3
 NUM_COLORS = 3
 NUM_SHAPES = 2
 
+DEFAULT_ENTROPY_WEIGHT = 1
+DEFAULT_ENTROPY_NORMALIZATION = None
+DEFAULT_USE_LSTM = False
+
+
 TrainingConfig = NamedTuple('TrainingConfig', [
     ('num_epochs', int),
     ('learning_rate', float),
@@ -55,7 +60,9 @@ GameConfig = NamedTuple('GameConfig', [
 ProcessingModuleConfig = NamedTuple('ProcessingModuleConfig', [
     ('input_size', int),
     ('hidden_size', int),
-    ('dropout', float)
+    ('dropout', float),
+
+    ('use_lstm', bool),
     ])
 
 WordCountingModuleConfig = NamedTuple('WordCountingModuleConfig', [
@@ -95,7 +102,12 @@ AgentModuleConfig = NamedTuple("AgentModuleConfig", [
     ('word_counter', WordCountingModuleConfig),
     ('use_utterances', bool),
     ('penalize_words', bool),
-    ('use_cuda', bool)
+    ('use_cuda', bool),
+
+    ('penalize_entropy', bool),
+    ('entropy_weight', float),
+    ('entropy_normalization', str),
+    ('use_lstm', bool),
     ])
 
 default_training_config = TrainingConfig(
@@ -132,15 +144,18 @@ if USE_UTTERANCES:
 else:
     feature_size = DEFAULT_FEATURE_VEC_SIZE*2
 
-def get_processor_config_with_input_size(input_size):
+def get_processor_config_with_input_size(input_size, use_lstm):
     return ProcessingModuleConfig(
         input_size=input_size,
         hidden_size=DEFAULT_HIDDEN_SIZE,
-        dropout=DEFAULT_DROPOUT)
+        dropout=DEFAULT_DROPOUT,
+
+        use_lstm=use_lstm,
+        )
 
 default_action_module_config = ActionModuleConfig(
-        goal_processor=get_processor_config_with_input_size(constants.GOAL_SIZE),
-        action_processor=get_processor_config_with_input_size(feature_size),
+        goal_processor=get_processor_config_with_input_size(constants.GOAL_SIZE, DEFAULT_USE_LSTM),
+        action_processor=get_processor_config_with_input_size(feature_size, DEFAULT_USE_LSTM),
         hidden_size=DEFAULT_HIDDEN_SIZE,
         dropout=DEFAULT_DROPOUT,
         movement_dim_size=constants.MOVEMENT_DIM_SIZE,
@@ -150,7 +165,7 @@ default_action_module_config = ActionModuleConfig(
         use_cuda=False)
 
 default_goal_predicting_module_config = GoalPredictingProcessingModuleConfig(
-    processor=get_processor_config_with_input_size(DEFAULT_VOCAB_SIZE),
+    processor=get_processor_config_with_input_size(DEFAULT_VOCAB_SIZE, DEFAULT_USE_LSTM),
     hidden_size=DEFAULT_HIDDEN_SIZE,
     dropout=DEFAULT_DROPOUT,
     goal_size=constants.GOAL_SIZE)
@@ -160,14 +175,20 @@ default_agent_config = AgentModuleConfig(
         feature_vec_size=DEFAULT_FEATURE_VEC_SIZE,
         movement_dim_size=constants.MOVEMENT_DIM_SIZE,
         utterance_processor=default_goal_predicting_module_config,
-        physical_processor=get_processor_config_with_input_size(constants.MOVEMENT_DIM_SIZE + constants.PHYSICAL_EMBED_SIZE),
+        physical_processor=get_processor_config_with_input_size(constants.MOVEMENT_DIM_SIZE + constants.PHYSICAL_EMBED_SIZE, DEFAULT_USE_LSTM),
         action_processor=default_action_module_config,
         word_counter=default_word_counter_config,
         goal_size=constants.GOAL_SIZE,
         vocab_size=DEFAULT_VOCAB_SIZE,
         use_utterances=USE_UTTERANCES,
         penalize_words=PENALIZE_WORDS,
-        use_cuda=False)
+        use_cuda=False,
+
+        penalize_entropy = False,
+        entropy_weight = DEFAULT_ENTROPY_WEIGHT,
+        entropy_normalization = DEFAULT_ENTROPY_NORMALIZATION,
+        use_lstm = DEFAULT_USE_LSTM,
+        )
 
 def get_training_config(kwargs):
     return TrainingConfig(
@@ -196,6 +217,11 @@ def get_game_config(kwargs):
             )
 
 def get_agent_config(kwargs):
+    penalize_entropy = kwargs['penalize_entropy']
+    entropy_weight = kwargs['entropy_weight'] or DEFAULT_ENTROPY_WEIGHT
+    entropy_normalization = kwargs['entropy_normalization'] or DEFAULT_ENTROPY_NORMALIZATION
+    use_lstm = kwargs['use_lstm'] or DEFAULT_USE_LSTM
+
     vocab_size = kwargs['vocab_size'] or DEFAULT_VOCAB_SIZE
     use_utterances = (not kwargs['no_utterances'])
     use_cuda = kwargs['use_cuda']
@@ -206,20 +232,21 @@ def get_agent_config(kwargs):
     else:
         feature_vec_size = DEFAULT_FEATURE_VEC_SIZE*2
     utterance_processor = GoalPredictingProcessingModuleConfig(
-            processor=get_processor_config_with_input_size(vocab_size),
+            processor=get_processor_config_with_input_size(vocab_size, use_lstm),
             hidden_size=DEFAULT_HIDDEN_SIZE,
             dropout=DEFAULT_DROPOUT,
             goal_size=constants.GOAL_SIZE)
     action_processor = ActionModuleConfig(
-            goal_processor=get_processor_config_with_input_size(constants.GOAL_SIZE),
-            action_processor=get_processor_config_with_input_size(feature_vec_size),
+            goal_processor=get_processor_config_with_input_size(constants.GOAL_SIZE, use_lstm),
+            action_processor=get_processor_config_with_input_size(feature_vec_size, use_lstm),
             hidden_size=DEFAULT_HIDDEN_SIZE,
             dropout=DEFAULT_DROPOUT,
             movement_dim_size=constants.MOVEMENT_DIM_SIZE,
             movement_step_size=constants.MOVEMENT_STEP_SIZE,
             vocab_size=vocab_size,
             use_utterances=use_utterances,
-            use_cuda=use_cuda)
+            use_cuda=use_cuda,
+            )
     word_counter = WordCountingModuleConfig(
             vocab_size=vocab_size,
             oov_prob=oov_prob,
@@ -237,6 +264,11 @@ def get_agent_config(kwargs):
             vocab_size=vocab_size,
             use_utterances=use_utterances,
             penalize_words=penalize_words,
-            use_cuda=use_cuda
+            use_cuda=use_cuda,
+
+            penalize_entropy = penalize_entropy,
+            entropy_weight = entropy_weight,
+            entropy_normalization = entropy_normalization,
+            use_lstm = use_lstm,
             )
 
